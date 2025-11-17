@@ -378,7 +378,7 @@ void update_display(unsigned char displayColors[])
   display.drawRect(0,0,xBounds[0],64,TSRectangleFilled,displayColors[0]);
   display.drawRect(xBounds[0],0,xBounds[1],64,TSRectangleFilled,displayColors[1]);
   display.drawRect(xBounds[1],0,xBounds[2],64,TSRectangleFilled,displayColors[2]);
-  delay(1000);
+  delay(100);
   // display.drawRect(0,0,xBounds[0],64,TSRectangleFilled,displayColors[1]);
   // display.drawRect(xBounds[0],0,xBounds[1],64,TSRectangleFilled,displayColors[1]);
   // display.drawRect(xBounds[1],0,xBounds[2],64,TSRectangleFilled,displayColors[1]);
@@ -499,7 +499,7 @@ void identifyColor()
   logic may be applied.
   *****************************************************************/
   int hueMargin = 20;
-  float saturationMargin = 0.1;
+  float saturationMargin = 0.5;
   int port;
 
   SerialMonitorInterface.println("identifyColor()");
@@ -552,8 +552,24 @@ void identifyColor()
   
 }
 /*******************************************************************/
+void lineLogic()
+{
+  //Use "TS_8b_White" style color names as stored in 
+  //"sensedColors" array to decide what to do with the motors
 
-//void lineLogic()
+  //IF all sensors see white, then translate forward at 80% speed for 0.10 seconds
+  if(sensedColors[0] == TS_8b_White && sensedColors[1] == TS_8b_White && sensedColors[2] == TS_8b_White)
+  {
+    translate(0.8,sFORWARD,0.10);
+  }
+  //ELSE IF all sensors do NOT see white, AND do NOT see "unknown" (red), then arch left for 1 second
+  else if(!(sensedColors[0] == TS_8b_White && sensedColors[1] == TS_8b_White && sensedColors[2] == TS_8b_White) && 
+          !(sensedColors[0] == TS_8b_Red && sensedColors[1] == TS_8b_Red && sensedColors[2] == TS_8b_Red))
+  {
+    arc(0.5,sLEFT,1);
+  }  
+}
+/*******************************************************************/
 void colorCalculations()
 {
   // SerialMonitorInterface.print("isLineArray[");
@@ -920,7 +936,7 @@ void setup()
   delay(200);              //TOF Sensor Startup time
   SerialMonitorInterface.begin(9600);
   SerialMonitorInterface.println("Serial Communications Initialized...");
-  // driveInit();
+  driveInit();
   // SerialMonitorInterface.println("Drive Initialized...");
 
   //THIS IS SETUP FOR THE WIRELING SENSORS
@@ -1010,7 +1026,7 @@ void loop()
   // rotate(test_speed, test_direction, test_duration);
   // halt(0.5);
   // test_direction = sRIGHT;
-  // turn(test_speed, test_direction, test_duration);
+  // arc(test_speed, test_direction, test_duration);
   // halt(0.5);
   // translate(0.3, sFORWARD, 0.5);
   // for(float v = 0.10; v < 0.80; v+=0.1)
@@ -1067,11 +1083,11 @@ void loop()
     SerialMonitorInterface.print("]: ");
     SerialMonitorInterface.println(vMean[port]);
   }
-  // lineLogic();
+  
   SerialMonitorInterface.println("identifyColor....");
   identifyColor();
   SerialMonitorInterface.println("update_display....");
   update_display(sensedColors); 
-  
+  lineLogic();
 }
 /*******************************************************************/
