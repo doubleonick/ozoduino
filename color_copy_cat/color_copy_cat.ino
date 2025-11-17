@@ -498,8 +498,8 @@ void identifyColor()
   be useful to see what each sensor sees so that the appropriate
   logic may be applied.
   *****************************************************************/
-  int hueMargin = 10;
-  float saturationMargin = 0.8;
+  int hueMargin = 20;
+  float saturationMargin = 0.1;
   int port;
 
   SerialMonitorInterface.println("identifyColor()");
@@ -556,6 +556,10 @@ void identifyColor()
 //void lineLogic()
 void colorCalculations()
 {
+  // SerialMonitorInterface.print("isLineArray[");
+  // SerialMonitorInterface.print(i);
+  // SerialMonitorInterface.print("]: ");
+  // SerialMonitorInterface.println(isLineArray[i]);
   bool rightIsLine, centerIsLine, leftIsLine;
   bool sensorArray[3] = {};
   float speed;
