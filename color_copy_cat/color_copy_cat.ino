@@ -61,6 +61,8 @@ right_proportion = .5
 #define SerialMonitorInterface SerialUSB
 // #endif
 
+int i = 0;
+
 #define NUM_COLOR_CH 3
 #define NUM_COLORS 6
 #define NUM_COLOR_SENSORS 3
@@ -551,84 +553,7 @@ void identifyColor()
   }
   
 }
-/*******************************************************************/
-void lineLogic()
-{
-  //Use "TS_8b_White" style color names as stored in 
-  //"sensedColors" array to decide what to do with the motors
 
-  //IF all sensors see white, then translate forward at 80% speed for 0.10 seconds
-  if(sensedColors[0] == TS_8b_White && sensedColors[1] == TS_8b_White && sensedColors[2] == TS_8b_White)
-  {
-    translate(0.8,sFORWARD,0.10);
-  }
-  //ELSE IF all sensors do NOT see white, AND do NOT see "unknown" (red), then arch left for 1 second
-  else if(!(sensedColors[0] == TS_8b_White && sensedColors[1] == TS_8b_White && sensedColors[2] == TS_8b_White) && 
-          !(sensedColors[0] == TS_8b_Red && sensedColors[1] == TS_8b_Red && sensedColors[2] == TS_8b_Red))
-  {
-    arc(0.5,sLEFT,1);
-  }  
-}
-/*******************************************************************/
-void colorCalculations()
-{
-  // SerialMonitorInterface.print("isLineArray[");
-  // SerialMonitorInterface.print(i);
-  // SerialMonitorInterface.print("]: ");
-  // SerialMonitorInterface.println(isLineArray[i]);
-  bool rightIsLine, centerIsLine, leftIsLine;
-  bool sensorArray[3] = {};
-  float speed;
-  float duration;
-  String direction;
-
-  float hue = 0.0;
-  float saturation = 0.0;
-  float color_value = 0.0;
-
-  float hueArray[] = {};
-  float saturationArray[] = {};
-  float colorValueArray[] = {};
-   
-  for(int n = 0; n < NUM_COLOR_SENSORS; n++)
-  {
-    for(int i = 0; i < NUM_SAMPLES; i++)
-    {
-      hueArray[i] = leftColorSensor.getH();
-      saturationArray[i] = leftColorSensor.getS();
-      colorValueArray[i] = leftColorSensor.getV();
-
-      SerialMonitorInterface.print("hueArray[");
-      SerialMonitorInterface.print(i);
-      SerialMonitorInterface.print("]: ");
-      SerialMonitorInterface.println(hueArray[i]);
-    }
-      
-    hueMean[n] = fmean(hueArray,NUM_SAMPLES);
-    saturationMean[n] = fmean(saturationArray,sizeof(saturationArray));
-    colorValueMean[n] = fmean(colorValueArray,sizeof(colorValueArray));
-    hueMode[n] = fmode(hueArray,sizeof(hueArray));
-    saturationMode[n] = fmode(saturationArray,sizeof(saturationArray));
-    colorValueMode[n] = fmode(colorValueArray,sizeof(colorValueArray));
-
-    //leftIsLine = leftColorSensor.isLine();
-    SerialMonitorInterface.print("SENSOR ");
-    SerialMonitorInterface.print(n);
-    SerialMonitorInterface.println(": ");
-    SerialMonitorInterface.print("hue mean =");
-    SerialMonitorInterface.println(hueMean[n]);
-    SerialMonitorInterface.print("saturation mean =");
-    SerialMonitorInterface.println(saturationMean[n]);
-    SerialMonitorInterface.print("colorvalue mean =");
-    SerialMonitorInterface.println(colorValueMean[n]);
-    /////////**/////
-    SerialMonitorInterface.print("hue mode =");
-    SerialMonitorInterface.println(hueMode[n]);
-    SerialMonitorInterface.print("saturation mode =");
-    SerialMonitorInterface.println(saturationMode[n]);
-    SerialMonitorInterface.print("colorvalue mode =");
-    SerialMonitorInterface.println(colorValueMode[n]);
-  }
   //
   //
   // SerialMonitorInterface.println(hue);
@@ -740,7 +665,7 @@ void colorCalculations()
   }
   */
   
-} 
+//} 
 /*******************************************************************/
 void halt(float duration)
 {
@@ -800,6 +725,8 @@ void rotate(float speed, String direction, float duration)
 }
 /*******************************************************************/
 void driveInit() {
+  SerialMonitorInterface.print("MOTOR_TYPE: ");
+  SerialMonitorInterface.println(MOTOR_TYPE);
   if (MOTOR_TYPE == DC_MOTOR)
   {
     dcMotorInit();
@@ -829,6 +756,7 @@ void servoInit()
   //The failsafe turns off the PWM output if a command is not sent in a certain amount of time.
   //Failsafe is set in milliseconds- comment or set to 0 to disable
   servo.setFailsafe(1000);
+  SerialMonitorInterface.println("servoInit() complete...!");
 }
 /*******************************************************************/
 void dcMotorInit()
@@ -924,6 +852,39 @@ float fmode(float arr[], int size)
   return mode;
 }
 /*******************************************************************/
+void lineLogic()
+{
+  bool centerOnLine = (sensedColors[CENTER_COLOR] == TS_8b_Black);
+  bool leftOnLine   = (sensedColors[LEFT_COLOR]   == TS_8b_Black);
+  bool rightOnLine  = (sensedColors[RIGHT_COLOR]  == TS_8b_Black);
+
+  // Perfectly centered: center sees black, both sides see white
+  if(centerOnLine && !leftOnLine && !rightOnLine)
+  {
+    translate(0.8, sFORWARD, 0.10);
+  }
+  // Drifted right: right sensor picks up the line → steer right
+  else if(rightOnLine && !leftOnLine)
+  {
+    arc(0.5, sRIGHT, 0.10);
+  }
+  // Drifted left: left sensor picks up the line → steer left
+  else if(leftOnLine && !rightOnLine)
+  {
+    arc(0.5, sLEFT, 0.10);
+  }
+  // Lost the line entirely (all white): go forward slowly and search
+  else if(!centerOnLine && !leftOnLine && !rightOnLine)
+  {
+    translate(0.3, sFORWARD, 0.10);
+  }
+  // All sensors on black (sharp turn or T-junction): arc left as default
+  else
+  {
+    arc(0.5, sLEFT, 0.10);
+  }
+}
+/*******************************************************************/
 
 /*********************************************************
 **********************************************************
@@ -937,157 +898,160 @@ void setup()
   SerialMonitorInterface.begin(9600);
   SerialMonitorInterface.println("Serial Communications Initialized...");
   driveInit();
-  // SerialMonitorInterface.println("Drive Initialized...");
+  // // SerialMonitorInterface.println("Drive Initialized...");
 
-  //THIS IS SETUP FOR THE WIRELING SENSORS
-  //IF YOU JUST WANT TO SEE THE SERVOS RUN, LEAVE THIS OUT.
-  Wire.begin();            // Begin I2C communication
+  // //THIS IS SETUP FOR THE WIRELING SENSORS
+  // //IF YOU JUST WANT TO SEE THE SERVOS RUN, LEAVE THIS OUT.
+  // Wire.begin();            // Begin I2C communication
 
-  // //Enable power & select port
-  Wireling.begin(); 
+  // // //Enable power & select port
+  // Wireling.begin(); 
 
-  // //RGB Sensor setup
-  // leftColorSensor.init();
-  // centerColorSensor.init();
-  // rightColorSensor.init();
+  // // //RGB Sensor setup
+  // // leftColorSensor.init();
+  // // centerColorSensor.init();
+  // // rightColorSensor.init();
 
-  //FROM COLOR CALIBRATION
-  cMax = 0.0;
-  cMin = 255.0;
+  // //FROM COLOR CALIBRATION
+  // cMax = 0.0;
+  // cMin = 255.0;
 
-  int port;
-  for (port = 0; port < NUM_COLOR_SENSORS; port++)
-  {
-    Wireling.selectPort(port);
-    if (tcs.begin()) {
-      SerialMonitorInterface.println("Found sensor");
-    } else {
-      SerialMonitorInterface.println("No TCS34725 found ... check your connections");
-      while (1);
-    }
-    // Turn Wireling LEDs on 
-   LEDon();
+  // int port;
+  // for (port = 0; port < NUM_COLOR_SENSORS; port++)
+  // {
+  //   Wireling.selectPort(port);
+  //   if (tcs.begin()) {
+  //     SerialMonitorInterface.println("Found sensor");
+  //   } else {
+  //     SerialMonitorInterface.println("No TCS34725 found ... check your connections");
+  //     while (1);
+  //   }
+  //   // Turn Wireling LEDs on 
+  //  LEDon();
 
-    r[port] = 0;
-    g[port] = 0;
-    b[port] = 0;
+  //   r[port] = 0;
+  //   g[port] = 0;
+  //   b[port] = 0;
     
-    h[port] = 0;
-    s[port] = 0;
-    v[port] = 0;
+  //   h[port] = 0;
+  //   s[port] = 0;
+  //   v[port] = 0;
 
-    hMean[port] = 0;
-    sMean[port] = 0;
-    vMean[port] = 0;
+  //   hMean[port] = 0;
+  //   sMean[port] = 0;
+  //   vMean[port] = 0;
 
-    //Profile hues
-    blackProfile[port][0]  = 20;
-    whiteProfile[port][0]  = 42;
-    blueProfile[port][0]    = 204;
-    greenProfile[port][0]  = 80;
-    //yellowProfile[port][0] = 60;
+  //   //Profile hues
+  //   blackProfile[port][0]  = 20;
+  //   whiteProfile[port][0]  = 42;
+  //   blueProfile[port][0]    = 204;
+  //   greenProfile[port][0]  = 80;
+  //   //yellowProfile[port][0] = 60;
 
-    //Profile saturations
-    blackProfile[port][1]  = 0.55;
-    whiteProfile[port][1]  = 0.30;
-    blueProfile[port][1]    = 0.55;
-    greenProfile[port][1]  = 0.55;
-    //yellowProfile[port][1] = 0.37;
+  //   //Profile saturations
+  //   blackProfile[port][1]  = 0.55;
+  //   whiteProfile[port][1]  = 0.30;
+  //   blueProfile[port][1]    = 0.55;
+  //   greenProfile[port][1]  = 0.55;
+  //   //yellowProfile[port][1] = 0.37;
 
-    sensedColors[port] = TS_8b_White;
-  }
+  //   sensedColors[port] = TS_8b_White;
+  // }
 
-  hSum = 0; 
-  hMode = 0;
-  sSum = 0;
-  sMode = 0;
-  vSum = 0;
-  vMode = 0;
-  // leftColorSensor.LEDoff();
-  // rightColorSensor.LEDoff();
+  // hSum = 0; 
+  // hMode = 0;
+  // sSum = 0;
+  // sMode = 0;
+  // vSum = 0;
+  // vMode = 0;
+  // // leftColorSensor.LEDoff();
+  // // rightColorSensor.LEDoff();
 
-  //TinyScreenBasicExample
-  display.begin();
-  //setBrightness(brightness);//sets main current level, valid levels are 0-15
-  display.setBrightness(10);
+  // //TinyScreenBasicExample
+  // display.begin();
+  // //setBrightness(brightness);//sets main current level, valid levels are 0-15
+  // display.setBrightness(10);
 }
 /*******************************************************************/
 void loop() 
 {
-  float test_speed = 0.8;//BTX 0 and 1
-  String test_direction = sFORWARD; //Use one of the constants (e.g. sFORWARD)
-  float test_duration = 0.5;//specified in seconds
   
-  int i, port;
-  //int numSamples = 50;
-  // translate(test_speed, test_direction, test_duration);
-  // halt(0.5);
-  // test_direction = sLEFT;
-  // rotate(test_speed, test_direction, test_duration);
-  // halt(0.5);
-  // test_direction = sRIGHT;
-  // arc(test_speed, test_direction, test_duration);
-  // halt(0.5);
-  // translate(0.3, sFORWARD, 0.5);
-  // for(float v = 0.10; v < 0.80; v+=0.1)
-  // {
-  //   drive(1.0, 1.0, 0.5);
-  //   drive(v, v, 0.5);
-  // }
+  // SerialMonitorInterface.print("looping: ");
+  // SerialMonitorInterface.println(i++);
+//   float test_speed = 0.8;//BTX 0 and 1
+//   String test_direction = sFORWARD; //Use one of the constants (e.g. sFORWARD)
+//   float test_duration = 0.5;//specified in seconds
   
-  SerialMonitorInterface.println("read_sensors....");
-  // read_sensors(); //read all sensors and set global variables of their readouts
-  // colorCalculations();
-  for(port = 0; port < NUM_COLOR_SENSORS; port++)
-  {
-    for(i = 0; i < NUM_SAMPLES; i++)  
-    {
-      ReadColorSensor(port);
-      // h[port] = 60;
-      // s[port] = 0.5;
-      // v[port] = 0;
+//   int i, port;
+//   //int numSamples = 50;
+//   // translate(test_speed, test_direction, test_duration);
+//   // halt(0.5);
+//   // test_direction = sLEFT;
+//   // rotate(test_speed, test_direction, test_duration);
+//   // halt(0.5);
+//   // test_direction = sRIGHT;
+//   // arc(test_speed, test_direction, test_duration);
+//   // halt(0.5);
+//   // translate(0.3, sFORWARD, 0.5);
+//   // for(float v = 0.10; v < 0.80; v+=0.1)
+//   // {
+//   //   drive(1.0, 1.0, 0.5);
+//   //   drive(v, v, 0.5);
+//   // }
+  
+//   SerialMonitorInterface.println("read_sensors....");
+//   // read_sensors(); //read all sensors and set global variables of their readouts
+//   // colorCalculations();
+//   for(port = 0; port < NUM_COLOR_SENSORS; port++)
+//   {
+//     for(i = 0; i < NUM_SAMPLES; i++)  
+//     {
+//       ReadColorSensor(port);
+//       // h[port] = 60;
+//       // s[port] = 0.5;
+//       // v[port] = 0;
 
-      hSum += h[port];
-      sSum += s[port];
-      vSum += v[port];
-//      blackProfile[port][0] += r[port];
-//      blackProfile[port][1] += g[port];
-//      blackProfile[port][2] += b[port];
-//      blackProfile[port][3] += s[port];  
-//      SerialMonitorInterface.print("h: ");
-//      SerialMonitorInterface.print(h[port]);
-//      SerialMonitorInterface.print(" s: ");
-//      SerialMonitorInterface.print(s[port]);
-//      SerialMonitorInterface.print(" v: ");
-//      SerialMonitorInterface.println(v[port]);
-    }
+//       hSum += h[port];
+//       sSum += s[port];
+//       vSum += v[port];
+// //      blackProfile[port][0] += r[port];
+// //      blackProfile[port][1] += g[port];
+// //      blackProfile[port][2] += b[port];
+// //      blackProfile[port][3] += s[port];  
+// //      SerialMonitorInterface.print("h: ");
+// //      SerialMonitorInterface.print(h[port]);
+// //      SerialMonitorInterface.print(" s: ");
+// //      SerialMonitorInterface.print(s[port]);
+// //      SerialMonitorInterface.print(" v: ");
+// //      SerialMonitorInterface.println(v[port]);
+//     }
 
-    hMean[port] = hSum/NUM_SAMPLES;
-    sMean[port] = sSum/NUM_SAMPLES;
-    vMean[port] = vSum/NUM_SAMPLES;
+//     hMean[port] = hSum/NUM_SAMPLES;
+//     sMean[port] = sSum/NUM_SAMPLES;
+//     vMean[port] = vSum/NUM_SAMPLES;
 
-    hSum = 0;
-    sSum = 0;
-    vSum = 0;
+//     hSum = 0;
+//     sSum = 0;
+//     vSum = 0;
   
-    SerialMonitorInterface.print("hMean[");
-    SerialMonitorInterface.print(port);
-    SerialMonitorInterface.print("]: ");
-    SerialMonitorInterface.println(hMean[port]);
-    SerialMonitorInterface.print("sMean[");
-    SerialMonitorInterface.print(port);
-    SerialMonitorInterface.print("]: ");
-    SerialMonitorInterface.println(sMean[port]);
-    SerialMonitorInterface.print("vMean[");
-    SerialMonitorInterface.print(port);
-    SerialMonitorInterface.print("]: ");
-    SerialMonitorInterface.println(vMean[port]);
-  }
+//     SerialMonitorInterface.print("hMean[");
+//     SerialMonitorInterface.print(port);
+//     SerialMonitorInterface.print("]: ");
+//     SerialMonitorInterface.println(hMean[port]);
+//     SerialMonitorInterface.print("sMean[");
+//     SerialMonitorInterface.print(port);
+//     SerialMonitorInterface.print("]: ");
+//     SerialMonitorInterface.println(sMean[port]);
+//     SerialMonitorInterface.print("vMean[");
+//     SerialMonitorInterface.print(port);
+//     SerialMonitorInterface.print("]: ");
+//     SerialMonitorInterface.println(vMean[port]);
+//   }
   
-  SerialMonitorInterface.println("identifyColor....");
-  identifyColor();
-  SerialMonitorInterface.println("update_display....");
-  update_display(sensedColors); 
-  lineLogic();
+//   SerialMonitorInterface.println("identifyColor....");
+//   identifyColor();
+//   SerialMonitorInterface.println("update_display....");
+//   update_display(sensedColors); 
+//   lineLogic();
 }
 /*******************************************************************/
